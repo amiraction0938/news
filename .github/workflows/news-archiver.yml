@@ -1,0 +1,103 @@
+name: 📰 News Archiver (Screenshot blocked sites)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Full URL of the news homepage (e.g., https://www.bbc.com/persian)'
+        required: true
+        type: string
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start WARP container (bypass)
+        run: |
+          docker network create warp-net || true
+          docker run -d --name warp --restart=always --network warp-net \
+            -p 1080:1080 --cap-add NET_ADMIN \
+            --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+            --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+            -v warp-data:/var/lib/cloudflare-warp \
+            caomingjun/warp
+          sleep 30
+          for i in {1..10}; do
+            RESULT=$(curl -s --max-time 10 --socks5-hostname 127.0.0.1:1080 https://cloudflare.com/cdn-cgi/trace 2>/dev/null || echo "failed")
+            if echo "$RESULT" | grep -qE "warp=(on|plus)"; then break; fi
+            sleep 10
+          done
+
+      - name: Install Puppeteer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl
+          npm init -y
+          npm install puppeteer
+
+      - name: Take full-page screenshot
+        run: |
+          URL="${{ github.event.inputs.url }}"
+          # Extract domain for folder name
+          DOMAIN=$(echo "$URL" | awk -F/ '{print $3}' | sed 's/^www\.//')
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FOLDER="news/$DOMAIN/$TIMESTAMP"
+          mkdir -p "$FOLDER"
+
+          cat > screenshot.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          const url = process.argv[2];
+          const folder = process.argv[3];
+
+          (async () => {
+            const browser = await puppeteer.launch({
+              headless: 'new',
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--proxy-server=socks5://127.0.0.1:1080'
+              ]
+            });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1280, height: 800 });
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+            await page.screenshot({ path: `${folder}/screenshot.png`, fullPage: true });
+            
+            // Also save a thumbnail (first 800px height)
+            await page.setViewport({ width: 1280, height: 800 });
+            await page.screenshot({ path: `${folder}/thumb.png` });
+            
+            // Save page title
+            const title = await page.title();
+            const fs = require('fs');
+            fs.writeFileSync(`${folder}/info.txt`, `URL: ${url}\nTitle: ${title}\nDate: ${new Date().toISOString()}`);
+            
+            await browser.close();
+          })();
+          EOF
+
+          node screenshot.js "$URL" "$FOLDER"
+
+      - name: Stop WARP container
+        if: always()
+        run: docker stop warp || true
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add news/
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Archive snapshot of ${{ github.event.inputs.url }} [skip ci]"
+            git pull --rebase
+            git push
+          fi
