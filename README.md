@@ -2,7 +2,7 @@
   <img src="https://raw.githubusercontent.com/amiraction0938/Downloader-file/main/dl-icon.gif" width="200" alt="News Archive" />
   <h1>🗞️ آرشیو مطبوعات آزاد – بدون فیلتر، بدون VPN</h1>
   <p>
-    <a href="https://github.com/amiraction0938/Downloader-file/actions"><img src="https://img.shields.io/github/actions/workflow/status/amiraction0938/Downloader-file/news-archiver.yml?label=News%20Archiver&logo=github" alt="News Archiver" /></a>
+    <a href="https://github.com/amiraction0938/news/actions"><img src="https://img.shields.io/github/actions/workflow/status/amiraction0938/Downloader-file/news-archiver.yml?label=News%20Archiver&logo=github" alt="News Archiver" /></a>
     <a href="https://actionfamily.lol/"><img src="https://img.shields.io/badge/Site-actionfamily.lol-ff6b6b?logo=google-chrome" alt="Website" /></a>
     <img src="https://img.shields.io/badge/Proxy-WARP-cyan?logo=cloudflare" alt="WARP Proxy" />
     <img src="https://img.shields.io/badge/Status-Online-brightgreen" alt="Online" />
